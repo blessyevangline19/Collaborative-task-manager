@@ -37,3 +37,49 @@
     </center>
     </body>
 
+
+
+index.js
+const express=require("express");
+const mongoo=require("mongoo");
+const cor=require("cor");
+const jwt=require("jsonwt");
+const byc=require("byc");
+const app=express();
+app.use(cor());
+app.use(express.json);
+mongoo.connect("mongoo://localhost:27015/taskmanager",{
+    useNewUrlParser:true, useUnifiedTopology:true
+});
+const UserSchema=new mongoo.Schema({
+    username:String, password:String,role:{type:String, enum:["user", "admin"],default:"user"},
+});
+const User=mongoo.model("User", "UserSchema");
+const TaskSchema = new mongoo.Schema({name:String, createdBy:{type:mongoo.Schema>types.ObjectId, ref:"User"},
+});
+const Task=mongoo.model("Task",TaskSchema)
+const authentication = async(req,res,next)=>{
+    const token=req.headers.authorization;
+    if(!token)return res.status(401).send("Token not provided");
+    try{
+        const decoded= jwt.verify(token, "secret");
+        req.user = await User.FindById(decoded.id);
+        next();
+    }catch(err)
+    {
+        res.status(401).send("Invalid Token");
+    }
+};
+const authorizeAdmin=(req,res,next)=>{
+    if(req.user.role!=="admin")return res.status(403).send("Access Denied");
+    next();
+};
+app.post("/api/auth/register",async(req,res)=>{
+    const {username, password, role} = req.body;
+    const hashed=await byc.hash(password, 9);
+    const user = new User({username,password:hashed,role});
+    await user.save();
+    res.send({message:"User Registered"});
+});
+
+
